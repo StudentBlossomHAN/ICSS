@@ -51,7 +51,7 @@ public class HANLinkedList<T> implements IHANLinkedList<T> {
     public void insert(int pos, T value){
         Node nodeRefrence = head;
         if(pos!=0){
-            nodeRefrence this.getNode(pos-1);
+            nodeRefrence = this.getNode(pos-1);
         }
         Node newNode = new Node(value);
         newNode.setNext(nodeRefrence.getNext());
@@ -81,7 +81,7 @@ public class HANLinkedList<T> implements IHANLinkedList<T> {
      */
     public T get(int pos){
         Node nodeRefrence = getNode(pos);
-        T value = nodeRefrence.getData();
+        T value = (T) nodeRefrence.getData();
         return (T) value;
 
     }
@@ -106,7 +106,7 @@ public class HANLinkedList<T> implements IHANLinkedList<T> {
      * Determines size of the list, equals the number of stored items but not the header node
      * @return number of items in list
      */
-    int getSize(){
+    public int getSize(){
         return size;
     }
 }
