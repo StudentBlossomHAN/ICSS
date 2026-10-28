@@ -80,7 +80,9 @@ public class HANLinkedList<T> implements IHANLinkedList<T> {
      * @return value at position pos
      */
     public T get(int pos){
-        return getNode(pos).getData();
+        Node nodeRefrence = getNode(pos);
+        T value = nodeRefrence.getData();
+        return (T) value;
 
     }
 
@@ -96,7 +98,7 @@ public class HANLinkedList<T> implements IHANLinkedList<T> {
      * @return first element
      */
     public T getFirst(){
-        return this.get(size-1);
+        return (T) this.get(size-1);
     }
 
 
