@@ -54,10 +54,7 @@ selectorClass: CLASS_IDENT;
 selectorTag: LOWER_IDENT;
 selectorId: ID_IDENT;
 
-selector
-    : selectorTag
-    | selectorClass
-    | selectorId;
+selector: selectorTag | selectorClass | selectorId;
 
 declarationBlock: (declaration | ifStatement | variableAssignment)*;
 
@@ -65,5 +62,16 @@ variableAssignment: variableReference ASSIGNMENT_OPERATOR expression+ SEMICOLON;
 
 ifStatement: IF BOX_BRACKET_OPEN (variableReference | boolLiteral) BOX_BRACKET_CLOSE OPEN_BRACE declarationBlock CLOSE_BRACE elseStatement?;
 elseStatement: ELSE OPEN_BRACE declarationBlock CLOSE_BRACE;
+
+expression: literal | expression (MUL) expression | expression (PLUS | MIN) expression;
+
+literal: boolLiteral | colorLiteral | percentLiteral | pixelLiteral | scalarLiteral | variableReference;
+
+boolLiteral: TRUE | FALSE;
+colorLiteral: COLOR;
+percentLiteral: PERCENTAGE;
+pixelLiteral: PIXELSIZE;
+scalarLiteral: SCALAR;
+variableReference: CAPITAL_IDENT;
 
 
