@@ -62,7 +62,6 @@ public class Pipeline implements ANTLRErrorListener {
             ICSSParser parser = new ICSSParser(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(this);
-
             ParseTree parseTree = parser.stylesheet();
 
             //Extract AST from the Antlr parse tree

@@ -3,7 +3,7 @@ package nl.han.ica.datastructures;
 import nl.han.ica.icss.ast.AST;
 
 public class HANStack<T> implements IHANStack<T>{
-    private HANLinkedList list = new HANLinkedList();
+    private HANLinkedList<T> list = new HANLinkedList();
 
     /**
      * pushes value T to the top of the stack
@@ -18,7 +18,8 @@ public class HANStack<T> implements IHANStack<T>{
      * @return popped value
      */
     public T pop(){
-        T returnValue= (T) list.getFirst();
+
+        T returnValue= list.getFirst();
         list.removeFirst();
         return returnValue;
     }
@@ -28,6 +29,6 @@ public class HANStack<T> implements IHANStack<T>{
      * @return value at the top of the stack
      */
     public T peek(){
-        return (T) list.getFirst();
+        return list.getFirst();
     }
 }
