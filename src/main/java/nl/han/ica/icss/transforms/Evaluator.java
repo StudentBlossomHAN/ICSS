@@ -11,6 +11,7 @@ import nl.han.ica.icss.ast.operations.AddOperation;
 import nl.han.ica.icss.ast.operations.MultiplyOperation;
 import nl.han.ica.icss.ast.operations.SubtractOperation;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -18,43 +19,52 @@ import java.util.LinkedList;
 public class Evaluator implements Transform {
 
     private HashMap<VariableReference, Literal> variableValues;
-    private ASTNode newAST = new ASTNode();
+
     public Evaluator() {
         variableValues = new HashMap<>();
     }
 
     @Override
     public void apply(AST ast) {
-    branchCheck(ast.root);
+        var stylesheet = ast.root;
+        branchCheck(stylesheet);
     }
 
     private void branchCheck(ASTNode parent) {
         ArrayList<ASTNode> nodes = parent.getChildren();
-        for(ASTNode node : nodes) {
-            if(node instanceof VariableAssignment) {
+
+        ArrayList<ASTNode> toRemove = new ArrayList<>();
+        ArrayList<ASTNode> toAdd = new ArrayList<>();
+        for (ASTNode node : nodes) {
+            if (node instanceof VariableAssignment) {
                 setVariableValues((VariableAssignment) node);
+                toRemove.add(node);
             } else if (node instanceof IfClause) {
-                    ASTNode tmp = ifChecker(node);
-
-                    parent.addChild(tmp);
-
-                    toRemove.add(node);
-                    //potential bug met dat hij niet tmp zal checken?
-                //vind dat moeilijk na te kijken
-                } else if (node instanceof Operation) {
-                ASTNode tmp = getOperationValue((Operation) node,parent);
+                    ArrayList<ASTNode> tmp = ifChecker(node);
+                toRemove.add(node);
+                    tmp.forEach(toAdd::add);
+            } else if (node instanceof Operation) {
+                ASTNode tmp = getOperationValue((Operation) node);
+                toRemove.add(node);//sometimes works?
+                toAdd.add(tmp);
             } else {
                 activateBranchCheck(node);
-                }
             }
         }
+        toRemove.forEach(parent::removeChild);
+        toAdd.forEach(parent::addChild);
+        parent.getChildren().removeAll(toRemove);
+        parent.getChildren().forEach(node -> {
+            if(node instanceof IfClause ){parent.removeChild(node);}});
+
+    }
     private void activateBranchCheck(ASTNode parent) {
         if(!parent.getChildren().isEmpty()) {
             branchCheck(parent);
         }
     }
 
-    private ASTNode ifChecker (ASTNode parent) {
+    private ArrayList<ASTNode> ifChecker (ASTNode parent) {
         ArrayList<ASTNode> nodes = parent.getChildren();
         ASTNode boolNode = nodes.get(0);
         Boolean executeIfStatement = true;
@@ -63,27 +73,26 @@ public class Evaluator implements Transform {
         } else if(boolNode instanceof VariableReference){
             executeIfStatement = ((BoolLiteral) variableValues.get((VariableReference) boolNode)).value;
         }
-//        parent.getChildren().remove(0);//this node should not be added to the replacement as it is the boolean
-        toRemove.add(boolNode);
-        ASTNode replacement = new ASTNode();
+        ArrayList<ASTNode> returnArray = new ArrayList<>();
         for(ASTNode node : nodes) {
             if((node instanceof ElseClause &&!executeIfStatement)) {
                 for(ASTNode child : node.getChildren()){
-                    replacement.addChild(child);
+                    returnArray.add(child);
                 }
             } else if(!(node instanceof ElseClause) && executeIfStatement) {
-                replacement.addChild(node);
+                returnArray.add(node);
             }
         }
-        return replacement;
+        returnArray.remove(boolNode);
+        return returnArray;
     }
 
     private Literal executeOperation(Operation parent) {
         Expression lhs = parent.lhs;
         Expression rhs = parent.rhs;
 
-        Literal left = getOperationValue(lhs,parent);
-        Literal right = getOperationValue(rhs,parent);
+        Literal left = getOperationValue(lhs);
+        Literal right = getOperationValue(rhs);
 
         int value=0;
 
@@ -120,19 +129,18 @@ public class Evaluator implements Transform {
         return 0;
     }
 
-    private Literal getOperationValue(ASTNode parent,ASTNode granparent) {
+    private Literal getOperationValue(ASTNode parent) {
         if(parent instanceof Operation) {
             Literal value = executeOperation((Operation)  parent);
-            granparent.addChild(value);
-            toRemove.add(parent);
+//            granparent.addChild(value);
+//            toRemove.add(parent);
             return value;
 
         } else if(parent instanceof Literal) {
             return (Literal)  parent;
         } else if (parent instanceof VariableReference) {
             Literal value = variableValues.get((VariableReference) parent);
-            granparent.addChild(value);
-            toRemove.add(parent);
+//            toRemove.add(parent);
             return value;
         }else {
             System.out.println("Mistake in de aanroep van getOperationValue?");
@@ -143,7 +151,12 @@ public class Evaluator implements Transform {
 
     private void setVariableValues (VariableAssignment parent) {
         VariableReference ref = parent.name;
-        Literal value = (Literal) parent.expression;
+        Literal value;
+        if(parent.getChildren().get(1) instanceof Literal) {
+            value = (Literal) parent.expression;
+        } else  {
+            value = getOperationValue(parent);
+        }
         variableValues.put(ref, value);
     }
 
