@@ -18,7 +18,7 @@ import java.util.LinkedList;
 public class Evaluator implements Transform {
 
     private HashMap<VariableReference, Literal> variableValues;
-
+    private ASTNode newAST = new ASTNode();
     public Evaluator() {
         variableValues = new HashMap<>();
     }
@@ -30,17 +30,20 @@ public class Evaluator implements Transform {
 
     private void branchCheck(ASTNode parent) {
         ArrayList<ASTNode> nodes = parent.getChildren();
-
         for(ASTNode node : nodes) {
             if(node instanceof VariableAssignment) {
                 setVariableValues((VariableAssignment) node);
             } else if (node instanceof IfClause) {
                     ASTNode tmp = ifChecker(node);
+
                     parent.addChild(tmp);
-                    parent.removeChild(node);
+
+                    toRemove.add(node);
                     //potential bug met dat hij niet tmp zal checken?
                 //vind dat moeilijk na te kijken
-                } else {
+                } else if (node instanceof Operation) {
+                ASTNode tmp = getOperationValue((Operation) node,parent);
+            } else {
                 activateBranchCheck(node);
                 }
             }
@@ -52,7 +55,6 @@ public class Evaluator implements Transform {
     }
 
     private ASTNode ifChecker (ASTNode parent) {
-        System.out.println(parent);
         ArrayList<ASTNode> nodes = parent.getChildren();
         ASTNode boolNode = nodes.get(0);
         Boolean executeIfStatement = true;
@@ -61,21 +63,8 @@ public class Evaluator implements Transform {
         } else if(boolNode instanceof VariableReference){
             executeIfStatement = ((BoolLiteral) variableValues.get((VariableReference) boolNode)).value;
         }
-        //okay so I had fun with this one ;)
-        //I was cooking!
-        /*
-        so the nodes in an if statement should stay if they are
-        1. an else clause and the if statement did not execute
-        2. not an else clause and the if statement executed
-        they should be removed if:
-        3. an else clause and the if statement got executed
-        4. not an else clause if the statement did not get executed
-
-        bij 3. moeten we wel de kinderen overzetten
-
-         */
-        nodes.remove(0);//this node should not be added to the replacement as it is the boolean
-
+//        parent.getChildren().remove(0);//this node should not be added to the replacement as it is the boolean
+        toRemove.add(boolNode);
         ASTNode replacement = new ASTNode();
         for(ASTNode node : nodes) {
             if((node instanceof ElseClause &&!executeIfStatement)) {
@@ -93,25 +82,19 @@ public class Evaluator implements Transform {
         Expression lhs = parent.lhs;
         Expression rhs = parent.rhs;
 
-        Literal left = getOperationValue(lhs);
-        Literal right = getOperationValue(rhs);
+        Literal left = getOperationValue(lhs,parent);
+        Literal right = getOperationValue(rhs,parent);
 
         int value=0;
 
         if(parent instanceof AddOperation) {
             value = getLiteralIntValue(left)+getLiteralIntValue(right);
         } else if(parent instanceof SubtractOperation) {
-
+            value = getLiteralIntValue(left)-getLiteralIntValue(right);
+        } else if(parent instanceof  MultiplyOperation) {
+            value = getLiteralIntValue(left)*getLiteralIntValue(right);
         }
 
-        //public enum ExpressionType {
-        //    PIXEL,
-        //    PERCENTAGE,
-        //    COLOR,
-        //    SCALAR,
-        //    UNDEFINED,
-        //    BOOL
-        //}
         Literal returnValue = null;
 
         if(lhs instanceof PixelLiteral ||  rhs instanceof PixelLiteral) {
@@ -137,59 +120,25 @@ public class Evaluator implements Transform {
         return 0;
     }
 
-    private Literal getOperationValue(ASTNode parent) {
+    private Literal getOperationValue(ASTNode parent,ASTNode granparent) {
         if(parent instanceof Operation) {
-            return executeOperation((Operation)  parent);
+            Literal value = executeOperation((Operation)  parent);
+            granparent.addChild(value);
+            toRemove.add(parent);
+            return value;
+
         } else if(parent instanceof Literal) {
             return (Literal)  parent;
         } else if (parent instanceof VariableReference) {
-            return variableValues.get((VariableReference) parent);
+            Literal value = variableValues.get((VariableReference) parent);
+            granparent.addChild(value);
+            toRemove.add(parent);
+            return value;
         }else {
             System.out.println("Mistake in de aanroep van getOperationValue?");
         }
         return null;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     private void setVariableValues (VariableAssignment parent) {
