@@ -4,10 +4,7 @@ import nl.han.ica.datastructures.HANLinkedList;
 import nl.han.ica.datastructures.IHANLinkedList;
 import nl.han.ica.datastructures.Node;
 import nl.han.ica.icss.ast.*;
-import nl.han.ica.icss.ast.literals.ColorLiteral;
-import nl.han.ica.icss.ast.literals.PercentageLiteral;
-import nl.han.ica.icss.ast.literals.PixelLiteral;
-import nl.han.ica.icss.ast.literals.ScalarLiteral;
+import nl.han.ica.icss.ast.literals.*;
 import nl.han.ica.icss.ast.operations.AddOperation;
 import nl.han.ica.icss.ast.operations.MultiplyOperation;
 import nl.han.ica.icss.ast.selectors.ClassSelector;
@@ -38,6 +35,7 @@ public class Checker {
     private IHANLinkedList<HashMap<String, ExpressionType>> variableTypes;
     private HashMap<VariableReference, Class> globalVariables =  new HashMap<>();
      Map<String, List<Class>> allowedDataTypes = new HashMap<>();
+     List<Class> disallowedOperationTypes = new ArrayList<>();
 
      public Checker() {
          makeAllowedDataTypes();
@@ -58,6 +56,8 @@ public class Checker {
          allowedDataTypes.get("height").add(PixelLiteral.class);
          allowedDataTypes.get("height").add(PercentageLiteral.class);
 
+        disallowedOperationTypes.add(ColorLiteral.class);
+        disallowedOperationTypes.add(BoolLiteral.class);
      }
 
     public void check(AST ast) {
@@ -65,14 +65,14 @@ public class Checker {
             if(node instanceof Stylerule) {
                 checkStyleRule(node);
             } else if(node instanceof VariableAssignment) {
-                checkGlobalVariableAssignment((VariableAssignment) node);
+                checkVariableAssignment((VariableAssignment) node,globalVariables);
             }
         }
     }
-    private void checkGlobalVariableAssignment(VariableAssignment parent) {
+    private void checkVariableAssignment(VariableAssignment parent,HashMap<VariableReference, Class> variableTypes) {
         if(parent.getChildren().get(0) instanceof VariableReference) {
             if(parent.getChildren().get(1) instanceof Literal) {
-                globalVariables.put(parent.name,parent.getChildren().get(1).getClass());
+                variableTypes.put(parent.name,parent.getChildren().get(1).getClass());
             } else {
                 parent.setError("Variable assignment mishap");
             }
@@ -80,94 +80,125 @@ public class Checker {
             parent.setError("Not a proper way to write a variable");
         }
     }
-    private void checkLocalVariableAssignment (VariableAssignment parent) {
-
-    }
-    private void  checkStyleRule(VariableAssignment parent) {
-
-    }
     private void checkStyleRule(ASTNode parent) {
         ArrayList<ASTNode> nodes = parent.getChildren();
-        if(nodes.get(0) instanceof IdSelector
-        ||nodes.get(0) instanceof TagSelector
-        ||nodes.get(0) instanceof ClassSelector) {} else {
-        //error?
+        if(! (nodes.get(0) instanceof Selector)) {
+            parent.setError("no selector declared");
         }
+        //we make new local variables
+        HashMap<VariableReference, Class> localVariables = new HashMap<>();
+        localVariables.putAll(globalVariables);
+
         for(ASTNode node : nodes) {
             if(node instanceof Declaration) {
-                checkDeclaration((Declaration) node);
+                checkDeclaration((Declaration) node,localVariables);
             } else if (node instanceof VariableAssignment) {
-                checkLocalVariableAssignment((VariableAssignment)  node);
+                checkVariableAssignment((VariableAssignment)  node,localVariables);
+            } else if (node instanceof IfClause) {
+                checkIfClause((IfClause) node, localVariables);
             }
         }
     }
-    private void checkDeclaration(Declaration parent) {
-         HashMap<VariableReference, Class> localVariables = new HashMap<>();
-                 localVariables.putAll(globalVariables);
-//        System.out.println(localVariables);
-        if(parent.getChildren().size() <2) {
-            //error te weinig
-        } else if (parent.getChildren().size() ==2){
-            //check variable
-            List<Class> acceptedTypes = allowedDataTypes.get(parent.property.name);
-            if(!acceptedTypes.contains(parent.getChildren().get(1).getClass())) {
-                if(parent.getChildren().get(1) instanceof VariableReference) {
-                    System.out.println(11);
-                    if(localVariables.containsKey(parent.expression)) {
-                        //dan is alles goed
-                    } else {
-                        parent.setError("non existing variable");
-                    }
+    private void checkIfClause(IfClause parent, HashMap<VariableReference, Class> localVariables) {
+        ArrayList<ASTNode> nodes = parent.getChildren();
+        if(! (nodes.get(0) instanceof BoolLiteral)) {
+            if(nodes.get(0) instanceof VariableReference) {
+                if(getVariableReference((VariableReference) nodes.get(0),localVariables) == BoolLiteral.class) {
+
                 } else {
-                    parent.setError("mismatched data types 2/0");
+                    parent.setError("non boolean variable in the if statement");
+                }
+            } else {
+                parent.setError("not a boolean after the If");
+            }
+        }
+        checkInsideStatements(nodes,localVariables);
+    }
+private void checkInsideStatements (ArrayList<ASTNode> nodes,HashMap<VariableReference, Class> localVariables) {
+    for (ASTNode node : nodes) {
+        if (node instanceof Declaration) {
+            checkDeclaration((Declaration) node, localVariables);
+        } else if (node instanceof VariableAssignment) {
+            checkVariableAssignment((VariableAssignment) node, localVariables);
+        } else if (node instanceof IfClause) {
+            checkIfClause((IfClause) node, localVariables);
+        } else if (node instanceof ElseClause) {
+            checkInsideStatements(node.getChildren(), localVariables);
+        }
+    }
+}
+    private void checkDeclaration(Declaration parent,HashMap<VariableReference, Class> localVariables) {
+        if(parent.getChildren().size() <2) {
+            parent.setError("not a complete declaration");
+        } else if (parent.getChildren().size() ==2){
+            ASTNode leftChild = parent.getChildren().get(0);
+            ASTNode rightChild = parent.getChildren().get(1);
+            //get all allowed data
+            List<Class> acceptedTypes = allowedDataTypes.get(parent.property.name);
+            //check if other side is in there
+            if(!acceptedTypes.contains(rightChild.getClass())) {//if right side is numba
+                if(rightChild instanceof VariableReference) {//if it is variable (crazy)
+                    if(!acceptedTypes.contains(getVariableReference((VariableReference) rightChild,localVariables))){
+                        parent.setError("variable is the wrong type");
+                    }
+                } else if (rightChild instanceof Operation) {
+                   if(acceptedTypes.contains( operationCheck((Operation) rightChild ,localVariables))){
+
+                   } else {
+                    parent.setError("Operation with wrong data types");
+                   }
+                } else {
+                    parent.setError("mismatched data types");
                 }
             }
         } else {
-
-
+            parent.setError("too many childern on the declaration");
         }
 
 
     }
-    private ASTNode operationCheck(Operation operation) {
+    private Class operationCheck(Operation operation,HashMap<VariableReference, Class> localVariables) {
         Expression lhs = operation.lhs;
         Expression rhs = operation.rhs;
 
-        if (lhs instanceof Operation) {
-            lhs = (Expression) operationCheck((Operation) lhs);
+        Class lClass = checkOperationSide(lhs,localVariables);
+        Class rClass = checkOperationSide(rhs,localVariables);
 
-        }
-        else if (lhs instanceof VariableReference) {
-            lhs = (Expression) getVariableReference((VariableReference) lhs);
-        }
-
-        if (rhs instanceof Operation) {
-            rhs = (Expression) operationCheck((Operation) lhs);
-
-        }
-        else if (rhs instanceof VariableReference) {
-            rhs = (Expression) getVariableReference((VariableReference) lhs);
-        }
-
-        if (lhs instanceof ColorLiteral ||  rhs instanceof ColorLiteral ) {
-            operation.setError("operation cannot be done on invalid data type");
-            return null;
-        }
-        if (operation instanceof MultiplyOperation) {
-            if (!(lhs instanceof ScalarLiteral) && !(rhs instanceof ScalarLiteral)) {
-                operation.setError("multiplication cannot be done with non scalar literal");
-                return null;
+        if(disallowedOperationTypes.contains(lClass) || disallowedOperationTypes.contains(rClass)) {
+            operation.setError("operation on unoperable data types");
+        } else if(operation instanceof MultiplyOperation) {
+            if(rClass == ScalarLiteral.class || lClass == ScalarLiteral.class) {
+                return (lClass == ScalarLiteral.class) ? rClass : lClass;
+            } else {
+                operation.setError("multiplication without scalars");
             }
-            return lhs instanceof ScalarLiteral ? rhs : lhs;
-        }
-        if (lhs.getClass() != rhs.getClass()) {
-            operation.setError("operation must be performed with identical data types");
+        } else if(lClass == rClass){
+            return lClass;
         } else {
-            return rhs;
+            operation.setError("Operation with different data types");
         }
-        return null;
+    return null;
     }
 
+    private Class checkOperationSide (Expression node,HashMap<VariableReference, Class> localVariables) {
+         if(node instanceof  Operation) {
+             return operationCheck((Operation) node,localVariables);
+         } else {
+             if(node instanceof VariableReference){
+                 return getVariableReference((VariableReference) node,localVariables);
+             }
+             return node.getClass();
+         }
+    }
+
+    private Class getVariableReference(VariableReference variableReference, HashMap<VariableReference, Class> localVariables) {
+         if(localVariables.containsKey(variableReference)) {
+             return localVariables.get(variableReference);
+         } else {
+             variableReference.setError("variable not found");
+             return null;
+         }
+    }
 
 
 }
