@@ -47,6 +47,10 @@ public class Evaluator implements Transform {
                 ASTNode tmp = getOperationValue((Operation) node);
                 toRemove.add(node);//sometimes works?
                 toAdd.add(tmp);
+            } else if (node instanceof VariableReference) {
+                Literal tmp = getOperationValue((VariableReference) node);
+                toRemove.add(node);
+                toAdd.add(tmp);
             } else {
                 activateBranchCheck(node);
             }
@@ -55,7 +59,12 @@ public class Evaluator implements Transform {
         toAdd.forEach(parent::addChild);
         parent.getChildren().removeAll(toRemove);
         parent.getChildren().forEach(node -> {
-            if(node instanceof IfClause ){parent.removeChild(node);}});
+            if(node instanceof IfClause){
+                System.out.println(parent);
+                System.out.println();
+                System.out.println(parent.removeChild(node));
+                System.out.println();
+                System.out.println(parent);}});
 
     }
     private void activateBranchCheck(ASTNode parent) {
@@ -132,15 +141,11 @@ public class Evaluator implements Transform {
     private Literal getOperationValue(ASTNode parent) {
         if(parent instanceof Operation) {
             Literal value = executeOperation((Operation)  parent);
-//            granparent.addChild(value);
-//            toRemove.add(parent);
             return value;
-
         } else if(parent instanceof Literal) {
             return (Literal)  parent;
         } else if (parent instanceof VariableReference) {
             Literal value = variableValues.get((VariableReference) parent);
-//            toRemove.add(parent);
             return value;
         }else {
             System.out.println("Mistake in de aanroep van getOperationValue?");

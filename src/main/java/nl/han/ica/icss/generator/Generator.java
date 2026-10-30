@@ -2,50 +2,60 @@ package nl.han.ica.icss.generator;
 
 
 import nl.han.ica.datastructures.Node;
-import nl.han.ica.icss.ast.AST;
-import nl.han.ica.icss.ast.ASTNode;
-import nl.han.ica.icss.ast.Stylerule;
-import nl.han.ica.icss.ast.VariableAssignment;
+import nl.han.ica.icss.ast.*;
+import nl.han.ica.icss.ast.literals.ColorLiteral;
+import nl.han.ica.icss.ast.literals.PercentageLiteral;
+import nl.han.ica.icss.ast.literals.PixelLiteral;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 
 public class Generator {
 
-	public String generate(AST ast) {
-        String result = diver(ast.root);
-
-        return result;
-	}
-
-    private String diver (ASTNode parent) {
+    public String generate(AST ast) {
         String result = "";
-        ArrayList<ASTNode> nodes = parent.getChildren();
-        for(ASTNode node : nodes){
-            if(node.getChildren().size()==0){
-                result+= generateWord(node);
-            } else {
-                diver(node);
-
+        for (var node : ast.root.getChildren()) {
+            if (!(node instanceof Stylerule)) {
+                continue;
             }
+            result += styleruleGenerator((Stylerule) node);
+            result += declarationGenerator(node);
+            result += "}\n\n";
         }
         return result;
     }
 
-//	private String generateLines (ASTNode parent, int level) {
-//        if(parent instanceof ) {
-////            return
-//        } else if(parent instanceof Stylerule) {
-//
-//        }
-//        return "";
-//    }
 
-    private String generateWord(ASTNode node) {
-        try {
-            return node.getNodeLabel().split("\\(")[1].split("\\)")[0];
-        } catch (Exception ex) {
-            return node.getNodeLabel();
+    private String styleruleGenerator(Stylerule stylerule) {
+        var selectors = new ArrayList<String>();
+
+        for (var selector : stylerule.selectors) {
+            selectors.add(selector.toString());
         }
+        String str = String.join(", ", selectors) + " {\n";
+        return str;
+    }
+
+    private String declarationGenerator(ASTNode astNode) {
+        String str = "";
+        for (var node : astNode.getChildren()) {
+            if(!(node instanceof Declaration)) {
+                continue;
+            }
+            var declartion = (Declaration) node;
+            str += "  " + declartion.property.name + ": " + literalToString(declartion.expression) + "\n";
+        }
+        return str;
+    }
+
+    private String literalToString(Expression expression) {
+        if  (expression instanceof PixelLiteral) {
+            return ((PixelLiteral) expression).value + "px";
+        } else if (expression instanceof PercentageLiteral) {
+            return ((PercentageLiteral) expression).value + "%";
+        } else if (expression instanceof ColorLiteral) {
+            return ((ColorLiteral) expression).value;
+        }
+        return null;
     }
 }
