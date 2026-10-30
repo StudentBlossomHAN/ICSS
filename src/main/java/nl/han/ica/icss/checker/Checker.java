@@ -70,12 +70,22 @@ public class Checker {
         }
     }
     private void checkVariableAssignment(VariableAssignment parent,HashMap<VariableReference, Class> variableTypes) {
-        if(parent.getChildren().get(0) instanceof VariableReference) {
-            if(parent.getChildren().get(1) instanceof Literal) {
-                variableTypes.put(parent.name,parent.getChildren().get(1).getClass());
+         ASTNode lhs = parent.getChildren().get(0);
+         ASTNode rhs = parent.getChildren().get(1);
+
+         Class type = null;
+
+        if(lhs instanceof VariableReference) {
+            if(rhs instanceof Literal) {
+                type = rhs.getClass();
+            } else if(rhs instanceof VariableReference){
+                type=getVariableReference((VariableReference) rhs,variableTypes);
+            } else if(rhs instanceof Operation) {
+                type=operationCheck((Operation) rhs,variableTypes);
             } else {
                 parent.setError("Variable assignment mishap");
             }
+            variableTypes.put(parent.name, type);
         } else {
             parent.setError("Not a proper way to write a variable");
         }
